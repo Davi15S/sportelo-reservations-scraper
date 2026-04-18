@@ -1,0 +1,62 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { todayISO } from '../utils/date';
+import type { FacilityScrapeResult } from '../scrapers/types';
+
+export type RunReport = {
+  startedAt: string;
+  finishedAt: string;
+  facilitiesTotal: number;
+  facilitiesOk: number;
+  facilitiesFailed: number;
+  snapshotsWritten: number;
+  validation: {
+    status: 'ok' | 'anomaly' | 'fail';
+    notes: string | null;
+  };
+  perFacility: Array<{
+    id: string;
+    name: string;
+    url: string;
+    status: 'ok' | 'failed';
+    snapshotCount: number;
+    error?: string;
+  }>;
+};
+
+export function buildReport(args: {
+  startedAt: Date;
+  results: FacilityScrapeResult[];
+  snapshotsWritten: number;
+  validationStatus: 'ok' | 'anomaly' | 'fail';
+  validationNotes: string | null;
+}): RunReport {
+  const ok = args.results.filter((r) => r.status === 'ok').length;
+  const failed = args.results.length - ok;
+
+  return {
+    startedAt: args.startedAt.toISOString(),
+    finishedAt: new Date().toISOString(),
+    facilitiesTotal: args.results.length,
+    facilitiesOk: ok,
+    facilitiesFailed: failed,
+    snapshotsWritten: args.snapshotsWritten,
+    validation: { status: args.validationStatus, notes: args.validationNotes },
+    perFacility: args.results.map((r) => ({
+      id: r.facility.id,
+      name: r.facility.name,
+      url: r.facility.reservationUrl,
+      status: r.status,
+      snapshotCount: r.status === 'ok' ? r.snapshots.length : 0,
+      ...(r.status === 'failed' ? { error: r.error } : {}),
+    })),
+  };
+}
+
+export async function saveReportToDisk(report: RunReport): Promise<string> {
+  const dir = 'reports';
+  await mkdir(dir, { recursive: true });
+  const file = join(dir, `${todayISO()}.json`);
+  await writeFile(file, JSON.stringify(report, null, 2), 'utf8');
+  return file;
+}

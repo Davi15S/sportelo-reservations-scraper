@@ -1,0 +1,120 @@
+import type { SlotSnapshot } from '../types';
+
+/**
+ * Reservanto widget vloží inline <script> uvnitř iframu obsahující:
+ *   var model = new DailyHorizotalCalendar({ days: [ ...JSON... ], ... });
+ * Scraper najde tento script a vytáhne pole `days:` – je to zdroj pravdy
+ * se všemi sloty viditelného týdne (žádný separátní JSON endpoint).
+ */
+
+type ReservantoDay = {
+  dayFormatted?: string;
+  locations?: ReservantoLocation[];
+};
+
+type ReservantoLocation = {
+  id?: number | string;
+  name?: string;
+  sources?: ReservantoSource[];
+};
+
+type ReservantoSource = {
+  id?: number | string;
+  name?: string;
+  availability?: ReservantoAvailability[];
+};
+
+type ReservantoAvailability = {
+  StartTime?: string;
+  EndTime?: string;
+  IsFree?: boolean;
+  CanBeBooked?: boolean;
+  AppointmentModel?: {
+    Availability?: string;
+    FreeCapacity?: number;
+  };
+};
+
+export function extractDaysJson(scripts: string[]): ReservantoDay[] | null {
+  for (const src of scripts) {
+    const idx = src.indexOf('days:');
+    if (idx < 0) continue;
+    const arrStart = src.indexOf('[', idx);
+    if (arrStart < 0) continue;
+    const arrEnd = findBalancedEnd(src, arrStart);
+    if (arrEnd < 0) continue;
+    const raw = src.slice(arrStart, arrEnd + 1);
+    try {
+      return JSON.parse(raw) as ReservantoDay[];
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+function findBalancedEnd(src: string, openIdx: number): number {
+  let depth = 0;
+  let inString = false;
+  let stringChar = '';
+  let escaped = false;
+  for (let i = openIdx; i < src.length; i++) {
+    const ch = src[i]!;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (inString) {
+      if (ch === '\\') escaped = true;
+      else if (ch === stringChar) inString = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inString = true;
+      stringChar = ch;
+      continue;
+    }
+    if (ch === '[' || ch === '{') depth++;
+    else if (ch === ']' || ch === '}') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+export function daysToSnapshots(days: ReservantoDay[]): SlotSnapshot[] {
+  const out: SlotSnapshot[] = [];
+  for (const day of days) {
+    for (const loc of day.locations ?? []) {
+      for (const src of loc.sources ?? []) {
+        const courtId = String(src.id ?? src.name ?? '').trim();
+        if (!courtId) continue;
+        for (const av of src.availability ?? []) {
+          if (!av.StartTime) continue;
+          const dateChecked = av.StartTime.slice(0, 10);
+          const timeSlot = `${av.StartTime.slice(11, 19)}`;
+          if (dateChecked.length !== 10 || timeSlot.length !== 8) continue;
+          out.push({
+            dateChecked,
+            timeSlot,
+            courtId,
+            isAvailable: isSlotAvailable(av),
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function isSlotAvailable(av: ReservantoAvailability): boolean {
+  if (av.AppointmentModel) {
+    const status = (av.AppointmentModel.Availability ?? '').toLowerCase();
+    if (['obsazeno', 'reserved', 'booked', 'zavřeno', 'zavreno', 'closed'].includes(status)) return false;
+    if (typeof av.AppointmentModel.FreeCapacity === 'number') return av.AppointmentModel.FreeCapacity > 0;
+  }
+  if (typeof av.CanBeBooked === 'boolean') return av.CanBeBooked;
+  if (typeof av.IsFree === 'boolean') return av.IsFree;
+  return false;
+}
