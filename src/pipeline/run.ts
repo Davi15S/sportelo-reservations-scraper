@@ -1,12 +1,12 @@
 import pLimit from 'p-limit';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
-import { listFacilities } from '../sources/notion';
+import { syncFacilities } from '../sources/sync';
 import { scrapeFacility } from '../scrapers/dispatch';
 import { closeBrowser } from '../scrapers/browser';
 import { closeDb } from '../db/client';
 import { insertScrapeRun, insertSnapshots } from './upsert';
-import { buildReport, saveReportToDisk } from './report';
+import { buildReport } from './report';
 import { validateRun } from './validate';
 import type { FacilityScrapeResult, Facility } from '../scrapers/types';
 import type { NewSnapshot } from '../db/schema/index';
@@ -20,10 +20,10 @@ export async function run(opts: RunOptions): Promise<void> {
   const startedAt = new Date();
   logger.info({ dryRun: opts.dryRun, facilityFilter: opts.facilityFilter }, 'scrape started');
 
-  const all = await listFacilities();
-  const targets = all.filter((f) => f.active).filter((f) => !opts.facilityFilter || f.id === opts.facilityFilter);
+  const all = await syncFacilities();
+  const targets = all.filter((f) => !opts.facilityFilter || f.id === opts.facilityFilter);
 
-  logger.info({ total: all.length, active: targets.length }, 'facilities loaded from Notion');
+  logger.info({ total: all.length, active: targets.length }, 'facilities synced from Notion');
   if (targets.length === 0) {
     logger.warn('no active facilities — nothing to do');
     await shutdown();
@@ -55,8 +55,7 @@ export async function run(opts: RunOptions): Promise<void> {
     validationNotes: validation.notes,
   });
 
-  const reportPath = await saveReportToDisk(report);
-  logger.info({ reportPath, validation: validation.status }, 'report saved');
+  logger.info({ validation: validation.status, snapshotsWritten }, 'run finished');
 
   if (!opts.dryRun) {
     await insertScrapeRun({
@@ -79,13 +78,20 @@ export async function run(opts: RunOptions): Promise<void> {
 
 function toSnapshotRows(
   facility: Facility,
-  slots: { dateChecked: string; timeSlot: string; courtId: string; isAvailable: boolean }[],
+  slots: {
+    dateChecked: string;
+    timeSlot: string;
+    courtId: string;
+    isAvailable: boolean;
+    sport: string | null;
+  }[],
   rawSample: unknown,
 ): NewSnapshot[] {
   return slots.map((s) => ({
     facilityId: facility.id,
     facilityName: facility.name,
     reservationUrl: facility.reservationUrl,
+    sport: s.sport ?? facility.sport,
     dateChecked: s.dateChecked,
     timeSlot: s.timeSlot,
     courtId: s.courtId,

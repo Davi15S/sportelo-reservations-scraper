@@ -32,6 +32,7 @@ type ReservantoAvailability = {
   AppointmentModel?: {
     Availability?: string;
     FreeCapacity?: number;
+    BookingServiceName?: string;
   };
 };
 
@@ -100,12 +101,32 @@ export function daysToSnapshots(days: ReservantoDay[]): SlotSnapshot[] {
             timeSlot,
             courtId,
             isAvailable: isSlotAvailable(av),
+            sport: detectSport(av, src),
           });
         }
       }
     }
   }
   return out;
+}
+
+/**
+ * Normalizuje sport z Reservanto metadat. Vrací `null` když nelze spolehlivě
+ * rozpoznat — pipeline pak sáhne po sport z Notion (facility.sport).
+ * Prohledává BookingServiceName + název zdroje (kurtu).
+ */
+function detectSport(av: ReservantoAvailability, src: ReservantoSource): string | null {
+  const candidates = [av.AppointmentModel?.BookingServiceName, src.name]
+    .filter((s): s is string => typeof s === 'string' && s.length > 0)
+    .map((s) => s.toLowerCase());
+  for (const c of candidates) {
+    if (/\bpadel|padle\b/.test(c)) return 'padel';
+    if (/\bsquash\b/.test(c)) return 'squash';
+    if (/\bbadminton\b/.test(c)) return 'badminton';
+    if (/\btenis|tennis\b/.test(c)) return 'tennis';
+    if (/\bstoln[ií].*tenis|ping\s?pong|table\s?tennis\b/.test(c)) return 'table_tennis';
+  }
+  return null;
 }
 
 function isSlotAvailable(av: ReservantoAvailability): boolean {

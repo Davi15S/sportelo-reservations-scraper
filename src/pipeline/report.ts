@@ -1,6 +1,3 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { todayISO } from '../utils/date';
 import type { FacilityScrapeResult } from '../scrapers/types';
 
 export type RunReport = {
@@ -53,10 +50,3 @@ export function buildReport(args: {
   };
 }
 
-export async function saveReportToDisk(report: RunReport): Promise<string> {
-  const dir = 'reports';
-  await mkdir(dir, { recursive: true });
-  const file = join(dir, `${todayISO()}.json`);
-  await writeFile(file, JSON.stringify(report, null, 2), 'utf8');
-  return file;
-}

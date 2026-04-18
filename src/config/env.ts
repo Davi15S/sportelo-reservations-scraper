@@ -5,7 +5,6 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   NOTION_TOKEN: z.string().min(1),
   NOTION_DATABASE_ID: z.string().min(1),
-  SCRAPE_WINDOW_DAYS: z.coerce.number().int().min(1).max(30).default(7),
   SCRAPE_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
 });

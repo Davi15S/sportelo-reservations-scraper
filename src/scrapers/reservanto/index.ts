@@ -1,5 +1,6 @@
 import { getBrowser } from '../browser';
 import { logger } from '../../utils/logger';
+import { todayInPrague } from '../../utils/date';
 import type { Facility, FacilityScrapeResult, SlotSnapshot } from '../types';
 import { daysToSnapshots, extractDaysJson } from './parser';
 
@@ -45,16 +46,24 @@ export async function scrapeReservantoFacility(facility: Facility): Promise<Faci
       return { status: 'ok', facility, snapshots: [], rawSample: null };
     }
 
-    const snapshots: SlotSnapshot[] = daysToSnapshots(days);
+    const today = todayInPrague();
+    const allSnapshots: SlotSnapshot[] = daysToSnapshots(days);
+    const snapshots = allSnapshots.filter((s) => s.dateChecked === today);
     logger.info(
-      { facility: facility.name, dayCount: days.length, slotCount: snapshots.length },
-      'reservanto parsed calendar',
+      {
+        facility: facility.name,
+        today,
+        dayCount: days.length,
+        slotCountTotal: allSnapshots.length,
+        slotCountToday: snapshots.length,
+      },
+      'reservanto parsed calendar (today-only filter applied)',
     );
     return {
       status: 'ok',
       facility,
       snapshots,
-      rawSample: { dayCount: days.length, firstDayFormatted: days[0]?.dayFormatted ?? null },
+      rawSample: { dayCount: days.length, firstDayFormatted: days[0]?.dayFormatted ?? null, today },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

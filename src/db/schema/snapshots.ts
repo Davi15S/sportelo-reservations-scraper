@@ -9,6 +9,7 @@ export const snapshots = benchmarks.table(
     facilityId: text('facility_id').notNull(),
     facilityName: text('facility_name').notNull(),
     reservationUrl: text('reservation_url').notNull(),
+    sport: text('sport').notNull(),
     scrapedAt: timestamp('scraped_at', { withTimezone: true }).notNull().defaultNow(),
     dateChecked: date('date_checked').notNull(),
     timeSlot: time('time_slot').notNull(),
