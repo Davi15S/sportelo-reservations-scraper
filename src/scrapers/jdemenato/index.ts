@@ -5,9 +5,9 @@ import { nowMinutesInPrague, todayInPrague } from '../../utils/date';
 import type { Facility, FacilityScrapeResult, SlotSnapshot } from '../types';
 import { buildSnapshots, type TableSnapshot } from './parser';
 
-const NAV_TIMEOUT_MS = 45_000;
-const IFRAME_WAIT_MS = 30_000;
-const TABLE_WAIT_MS = 20_000;
+const NAV_TIMEOUT_MS = 60_000;
+const IFRAME_WAIT_MS = 45_000;
+const TABLE_WAIT_MS = 40_000;
 const SETTLE_MS = 1_500;
 const PER_SPORT_SETTLE_MS = 2_000;
 const IFRAME_SELECTOR = 'iframe[src*="jdemenato.cz"]';

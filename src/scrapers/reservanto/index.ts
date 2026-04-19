@@ -5,8 +5,8 @@ import { todayInPrague } from '../../utils/date';
 import type { Facility, FacilityScrapeResult, SlotSnapshot } from '../types';
 import { daysToSnapshots, extractDaysJson } from './parser';
 
-const NAV_TIMEOUT_MS = 30_000;
-const CALENDAR_WAIT_MS = 20_000;
+const NAV_TIMEOUT_MS = 60_000;
+const CALENDAR_WAIT_MS = 40_000;
 const SETTLE_MS = 2_000;
 const PER_SERVICE_SETTLE_MS = 2_500;
 const IFRAME_SELECTOR = 'iframe[src*="booking.reservanto.cz/form"]';
