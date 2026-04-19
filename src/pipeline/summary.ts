@@ -48,7 +48,7 @@ export async function buildDailySummary(summaryDate: string): Promise<number> {
       last_scraped_at = EXCLUDED.last_scraped_at,
       generated_at = NOW()
   `);
-  return result.count ?? 0;
+  return result.rowCount ?? 0;
 }
 
 export async function runSummaryCli(): Promise<void> {
