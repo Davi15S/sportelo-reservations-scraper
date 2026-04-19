@@ -40,6 +40,7 @@ jobs:
       NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
       NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      APP_ENV: 'production'
       SCRAPE_CONCURRENCY: '3'
       LOG_LEVEL: 'info'
     steps:

@@ -9,6 +9,9 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
   /** Optional — když chybí, Discord notifikace se neposílají. */
   DISCORD_WEBHOOK_URL: z.string().url().optional(),
+  /** 'production' → bez tagu v Discord zprávách. Cokoli jiného (test / dev)
+   *  → title se označí `[TEST]`. Default = dev (lokální běh). */
+  APP_ENV: z.enum(['production', 'test', 'dev']).default('dev'),
 });
 
 const parsed = envSchema.safeParse(process.env);

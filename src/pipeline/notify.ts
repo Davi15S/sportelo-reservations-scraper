@@ -1,10 +1,13 @@
 import { sql } from 'drizzle-orm';
+import { env } from '../config/env';
 import { db } from '../db/client';
 import { COLOR, sendDiscord, type DiscordEmbed } from '../notifications/discord';
 import { slugify } from '../scrapers/reservanto/parser';
 import { todayInPrague } from '../utils/date';
 import type { FacilityScrapeResult } from '../scrapers/types';
 import type { PendingError } from './errors';
+
+const ENV_TAG = env.APP_ENV === 'production' ? '' : '[TEST] ';
 
 const EMPTY = '(žádná data)';
 
@@ -72,7 +75,7 @@ export async function sendScrapeReport(args: {
   const titleEmoji = args.phase === 'morning' ? '🌅' : '🌇';
   const titlePhase = args.phase === 'morning' ? 'Ranní scrape' : 'Odpolední scrape';
   const embed: DiscordEmbed = {
-    title: `${titleEmoji} ${titlePhase} — ${formatCzechDate(new Date())}`,
+    title: `${ENV_TAG}${titleEmoji} ${titlePhase} — ${formatCzechDate(new Date())}`,
     description: fields.length === 0 ? EMPTY : `Posbíráno per sportoviště / sport (${stamp}).`,
     color: pickColor(args.errors.length > 0, args.results),
     fields: fields.length > 0 ? fields : undefined,
@@ -139,7 +142,7 @@ export async function sendDailySummaryReport(args: {
 
   const stamp = formatCzechDateTime(new Date());
   const embed: DiscordEmbed = {
-    title: `📊 Celodenní shrnutí — ${formatCzechDate(new Date())}`,
+    title: `${ENV_TAG}📊 Celodenní shrnutí — ${formatCzechDate(new Date())}`,
     description: fields.length === 0 ? EMPTY : `Obsazenost per sportoviště za celý den (${stamp}).`,
     color: pickColor(args.errors.length > 0, args.results),
     fields: fields.length > 0 ? fields : undefined,
@@ -161,7 +164,7 @@ export async function sendErrorReport(args: {
   }));
 
   const embed: DiscordEmbed = {
-    title: args.title,
+    title: `${ENV_TAG}${args.title}`,
     description: `Zachyceno **${args.errors.length}** chyb (${formatCzechDateTime(new Date())}).`,
     color: COLOR.red,
     fields,
