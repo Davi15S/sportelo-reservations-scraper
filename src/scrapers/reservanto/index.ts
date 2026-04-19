@@ -82,13 +82,14 @@ export async function scrapeReservantoFacility(facility: Facility): Promise<Faci
      * zmizela.
      */
     const servicesWithToday = new Set(snapshots.map((s) => s.sport));
+    const todayTemplate = snapshots.length > 0 ? pickTodayTemplate(snapshots) : [];
     for (const svc of services) {
       const slug = slugify(svc.name);
       if (servicesWithToday.has(slug)) continue;
-      const template = pickTemplate(allSnapshots, slug);
+      const template = pickTemplate(allSnapshots, slug, todayTemplate);
       if (template.length === 0) continue;
       for (const t of template) {
-        snapshots.push({ ...t, dateChecked: today, isAvailable: false });
+        snapshots.push({ ...t, dateChecked: today, isAvailable: false, sport: slug });
       }
       logger.info(
         { facility: facility.name, service: svc.name, syntheticSlots: template.length },
@@ -150,14 +151,41 @@ async function selectService(frame: Frame, serviceId: string): Promise<boolean> 
   }
 }
 
-/** Vybere sloty nejbližšího dne, pro který služba nějaká data má. */
-function pickTemplate(all: SlotSnapshot[], slug: string): SlotSnapshot[] {
+/**
+ * Vybere slot layout pro off-season službu. Dva zdroje:
+ * 1) today layout jiné služby stejného facility — stejná hala, stejné
+ *    otevírací hodiny. Preferované, protože service může být sezónně
+ *    otevíraná jen částí dne → vlastní layout by vrátil méně slotů než
+ *    by fyzicky měla.
+ * 2) fallback: vlastní nejbližší dostupný den.
+ */
+function pickTemplate(
+  all: SlotSnapshot[],
+  slug: string,
+  todayTemplate: SlotSnapshot[],
+): SlotSnapshot[] {
+  if (todayTemplate.length > 0) return todayTemplate;
   const forService = all.filter((s) => s.sport === slug);
   if (forService.length === 0) return [];
   const dates = [...new Set(forService.map((s) => s.dateChecked))].sort();
   const firstDate = dates[0];
   if (!firstDate) return [];
   return forService.filter((s) => s.dateChecked === firstDate);
+}
+
+/** Vzor dnešního dne z první služby která má dnešní data (nejvíc slotů první). */
+function pickTodayTemplate(snapshots: SlotSnapshot[]): SlotSnapshot[] {
+  const bySport = new Map<string, SlotSnapshot[]>();
+  for (const s of snapshots) {
+    const list = bySport.get(s.sport ?? '') ?? [];
+    list.push(s);
+    bySport.set(s.sport ?? '', list);
+  }
+  let best: SlotSnapshot[] = [];
+  for (const list of bySport.values()) {
+    if (list.length > best.length) best = list;
+  }
+  return best;
 }
 
 async function extractCurrentService(
