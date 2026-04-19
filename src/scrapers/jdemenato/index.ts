@@ -1,5 +1,5 @@
 import type { Frame, Page } from 'playwright';
-import { getBrowser } from '../browser';
+import { getBrowser, getContextOptions } from '../browser';
 import { logger } from '../../utils/logger';
 import { nowMinutesInPrague, todayInPrague } from '../../utils/date';
 import type { Facility, FacilityScrapeResult, SlotSnapshot } from '../types';
@@ -25,12 +25,7 @@ type SportTab = { id: string; name: string; isSelected: boolean };
  */
 export async function scrapeJdemenatoFacility(facility: Facility): Promise<FacilityScrapeResult> {
   const browser = await getBrowser();
-  const context = await browser.newContext({
-    locale: 'cs-CZ',
-    timezoneId: 'Europe/Prague',
-    userAgent:
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  });
+  const context = await browser.newContext(getContextOptions());
   const page = await context.newPage();
 
   try {

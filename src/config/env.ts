@@ -12,6 +12,13 @@ const envSchema = z.object({
   /** 'production' → bez tagu v Discord zprávách. Cokoli jiného (test / dev)
    *  → title se označí `[TEST]`. Default = dev (lokální běh). */
   APP_ENV: z.enum(['production', 'test', 'dev']).default('dev'),
+  /** Optional HTTP(S) proxy pro Playwright. Formát:
+   *    http://user:pass@host:port   (s basic auth)
+   *    http://host:port             (bez auth)
+   *  Používá se primárně na GH Actions / DO kde datacenter IP dostávají CF Turnstile.
+   *  Residential/mobile proxy (Webshare, IPRoyal) ji obchází. Když chybí, scraper
+   *  běží bez proxy (lokál, residential ISP). */
+  PROXY_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
