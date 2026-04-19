@@ -30,8 +30,13 @@ export async function sendMorningReport(args: {
       sport,
       COUNT(*)::int AS total,
       SUM((is_available)::int)::int AS available
-    FROM benchmarks.snapshots
-    WHERE date_checked = ${today}
+    FROM (
+      SELECT DISTINCT ON (facility_id, date_checked, time_slot, court_id, sport)
+        facility_id, facility_name, sport, is_available, scraped_at
+      FROM benchmarks.snapshots
+      WHERE date_checked = ${today}
+      ORDER BY facility_id, date_checked, time_slot, court_id, sport, scraped_at DESC
+    ) latest
     GROUP BY facility_name, sport
     ORDER BY facility_name, sport
   `);
