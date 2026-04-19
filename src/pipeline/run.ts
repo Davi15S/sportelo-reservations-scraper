@@ -8,6 +8,7 @@ import { closeDb } from '../db/client';
 import { insertScrapeRun, insertSnapshots } from './upsert';
 import { buildReport } from './report';
 import { validateRun } from './validate';
+import { flushErrors, normalizeError, type PendingError } from './errors';
 import type { FacilityScrapeResult, Facility } from '../scrapers/types';
 import type { NewSnapshot } from '../db/schema/index';
 
@@ -18,33 +19,60 @@ type RunOptions = {
 
 export async function run(opts: RunOptions): Promise<void> {
   const startedAt = new Date();
+  const pendingErrors: PendingError[] = [];
   logger.info({ dryRun: opts.dryRun, facilityFilter: opts.facilityFilter }, 'scrape started');
 
-  const all = await syncFacilities();
+  let all: Facility[] = [];
+  try {
+    all = await syncFacilities();
+  } catch (err) {
+    logger.error({ err: err instanceof Error ? err.message : String(err) }, 'sync failed');
+    pendingErrors.push(normalizeError({ stage: 'sync', err }));
+  }
   const targets = all.filter((f) => !opts.facilityFilter || f.id === opts.facilityFilter);
 
   logger.info({ total: all.length, active: targets.length }, 'facilities synced from Notion');
-  if (targets.length === 0) {
-    logger.warn('no active facilities — nothing to do');
-    await shutdown();
-    return;
-  }
 
   const limit = pLimit(env.SCRAPE_CONCURRENCY);
-  const results = await Promise.all(
-    targets.map((f) => limit(() => scrapeFacility(f).catch<FacilityScrapeResult>((err) => ({
-      status: 'failed',
-      facility: f,
-      error: err instanceof Error ? err.message : String(err),
-    })))),
+  const results: FacilityScrapeResult[] = await Promise.all(
+    targets.map((f) =>
+      limit(async () => {
+        try {
+          return await scrapeFacility(f);
+        } catch (err) {
+          return {
+            status: 'failed' as const,
+            facility: f,
+            error: err instanceof Error ? err.message : String(err),
+          };
+        }
+      }),
+    ),
   );
+
+  for (const r of results) {
+    if (r.status !== 'failed') continue;
+    pendingErrors.push(
+      normalizeError({
+        stage: 'scrape',
+        err: new Error(r.error),
+        facility: { id: r.facility.id, name: r.facility.name, reservationUrl: r.facility.reservationUrl },
+        platform: detectPlatform(r.facility.reservationUrl),
+      }),
+    );
+  }
 
   const rows = results.flatMap((r) => (r.status === 'ok' ? toSnapshotRows(r.facility, r.snapshots, r.rawSample) : []));
   const validation = validateRun(results);
 
   let snapshotsWritten = 0;
   if (!opts.dryRun && rows.length > 0) {
-    snapshotsWritten = await insertSnapshots(rows);
+    try {
+      snapshotsWritten = await insertSnapshots(rows);
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, 'insertSnapshots failed');
+      pendingErrors.push(normalizeError({ stage: 'insert', err, errorType: 'db', context: { rowCount: rows.length } }));
+    }
   }
 
   const report = buildReport({
@@ -55,25 +83,59 @@ export async function run(opts: RunOptions): Promise<void> {
     validationNotes: validation.notes,
   });
 
-  logger.info({ validation: validation.status, snapshotsWritten }, 'run finished');
+  logger.info({ validation: validation.status, snapshotsWritten, errorCount: pendingErrors.length }, 'run finished');
 
+  let scrapeRunId: string | null = null;
   if (!opts.dryRun) {
-    await insertScrapeRun({
-      startedAt,
-      finishedAt: new Date(),
-      facilitiesTotal: report.facilitiesTotal,
-      facilitiesOk: report.facilitiesOk,
-      facilitiesFailed: report.facilitiesFailed,
-      snapshotsWritten,
-      validationStatus: validation.status,
-      validationNotes: validation.notes,
-      reportJson: report,
-    });
+    try {
+      scrapeRunId = await insertScrapeRun({
+        startedAt,
+        finishedAt: new Date(),
+        facilitiesTotal: report.facilitiesTotal,
+        facilitiesOk: report.facilitiesOk,
+        facilitiesFailed: report.facilitiesFailed,
+        snapshotsWritten,
+        validationStatus: validation.status,
+        validationNotes: validation.notes,
+        reportJson: report,
+      });
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, 'insertScrapeRun failed');
+      pendingErrors.push(normalizeError({ stage: 'insert', err, errorType: 'db' }));
+    }
+
+    if (pendingErrors.length > 0) {
+      try {
+        const n = await flushErrors(pendingErrors, scrapeRunId);
+        logger.info({ errorsWritten: n, scrapeRunId }, 'scrape errors persisted');
+      } catch (err) {
+        logger.error({ err: err instanceof Error ? err.message : String(err) }, 'flushErrors failed');
+      }
+    }
   }
 
-  if (opts.dryRun) console.log(JSON.stringify(report, null, 2));
+  if (opts.dryRun) console.log(JSON.stringify({ ...report, errors: pendingErrors }, null, 2));
 
   await shutdown();
+
+  if (pendingErrors.length > 0 || validation.status === 'fail') {
+    process.exitCode = 1;
+  }
+}
+
+function detectPlatform(url: string): string | null {
+  const host = safeHost(url);
+  if (!host) return null;
+  if (host.endsWith('.e-rezervace.cz') || host === 'e-rezervace.cz') return 'smarcoms';
+  return 'reservanto';
+}
+
+function safeHost(url: string): string | null {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 function toSnapshotRows(

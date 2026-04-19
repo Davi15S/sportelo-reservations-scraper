@@ -14,6 +14,8 @@ export async function insertSnapshots(rows: NewSnapshot[]): Promise<number> {
   return written;
 }
 
-export async function insertScrapeRun(run: NewScrapeRun): Promise<void> {
-  await db.insert(scrapeRuns).values(run);
+export async function insertScrapeRun(run: NewScrapeRun): Promise<string> {
+  const [row] = await db.insert(scrapeRuns).values(run).returning({ id: scrapeRuns.id });
+  if (!row) throw new Error('failed to insert scrape_runs row');
+  return row.id;
 }

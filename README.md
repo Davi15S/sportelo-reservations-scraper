@@ -43,8 +43,57 @@ npm run summary -- 2026-04-19       # explicitní den
 - `snapshots` — per-slot observace (`facility_id`, `sport`, `date_checked`, `time_slot`, `court_id`, `is_available`)
 - `scrape_runs` — 1 řádek per běh (`validation_status`, `report_json`)
 - `daily_summaries` — agregát (`facility_id`, `sport`, `summary_date`, `total_slots`, `available_slots`, `occupancy_pct`, …)
+- `scrape_errors` — per-chyba detailní log s dedup + resolved workflow (níže)
 
 Migrations table: `benchmarks.__benchmarks_migrations` (izolovaná od cizích drizzle instalací).
+
+## Error handling & auto-fix workflow
+
+Tabulka `benchmarks.scrape_errors` drží každý problem jako **otevřený incident**. Opakující se chyba (stejný `fingerprint`) se **neduplikuje** — místo toho se bumpne `occurrence_count` + `last_seen_at`. Když chybu označíš jako `resolved=true` a problém se znovu objeví, vznikne nový řádek (regrese).
+
+### Sloupce
+
+| Sloupec | Význam |
+|---|---|
+| `fingerprint` | SHA1(stage + facility_id + normalized message). Stejná chyba napříč běhy = stejný fingerprint. |
+| `stage` | `bootstrap \| sync \| scrape \| parse \| insert \| validate \| summary` |
+| `error_type` | `network \| timeout \| parse \| validation \| db \| unexpected` |
+| `error_message`, `error_stack`, `context` | Full info pro debug (context je JSONB — URL, status code, selektor, …) |
+| `facility_id`, `facility_name`, `reservation_url`, `platform` | Kde to selhalo |
+| `first_seen_at`, `last_seen_at`, `occurrence_count` | Kdy + kolikrát |
+| `resolved`, `resolved_at`, `resolved_by`, `resolved_note` | Stav řešení |
+
+### Export otevřených chyb (pro AI debug)
+
+```sql
+SELECT
+  id, stage, error_type, occurrence_count, first_seen_at, last_seen_at,
+  facility_name, reservation_url, platform,
+  error_message, error_stack, context
+FROM benchmarks.scrape_errors
+WHERE resolved = false
+ORDER BY last_seen_at DESC;
+```
+
+Výstup hoď do AI chatu s promptem `"Toto jsou otevřené chyby scraperu. Navrhni opravu."`
+
+### Mark as resolved (jakmile fix nasazen)
+
+```sql
+UPDATE benchmarks.scrape_errors
+SET resolved = true,
+    resolved_at = NOW(),
+    resolved_by = 'auto-fix PR #12',  -- nebo 'manual', commit SHA, …
+    resolved_note = 'extract inline-script regex updated to tolerate new Reservanto markup'
+WHERE id = '<uuid>';
+```
+
+Nebo hromadně pro všechny stejný fingerprint:
+```sql
+UPDATE benchmarks.scrape_errors
+SET resolved = true, resolved_at = NOW(), resolved_by = 'fix abc123'
+WHERE fingerprint = '<hash>' AND resolved = false;
+```
 
 ## Struktura
 

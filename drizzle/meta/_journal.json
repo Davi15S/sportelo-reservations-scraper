@@ -8,6 +8,13 @@
       "when": 1776547459377,
       "tag": "0000_dapper_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776584693407,
+      "tag": "0001_steady_kid_colt",
+      "breakpoints": true
     }
   ]
 }
