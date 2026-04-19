@@ -3,7 +3,7 @@ import { getBrowser } from '../browser';
 import { logger } from '../../utils/logger';
 import { todayInPrague } from '../../utils/date';
 import type { Facility, FacilityScrapeResult, SlotSnapshot } from '../types';
-import { daysToSnapshots, extractDaysJson } from './parser';
+import { daysToSnapshots, extractDaysJson, slugify } from './parser';
 
 const NAV_TIMEOUT_MS = 30_000;
 const CALENDAR_WAIT_MS = 20_000;
@@ -73,6 +73,29 @@ export async function scrapeReservantoFacility(facility: Facility): Promise<Faci
     }
 
     const snapshots = allSnapshots.filter((s) => s.dateChecked === today);
+
+    /**
+     * Pro služby, které dnes nemají žádné sloty (mimo sezónu — např. letní
+     * hala v dubnu), vezmeme slot template z nejbližšího dne kde data jsou,
+     * přemapujeme datum na dnes a označíme `is_available=false`. Výsledek:
+     * služba se ve statistikách objeví jako "100% obsazeno" místo aby
+     * zmizela.
+     */
+    const servicesWithToday = new Set(snapshots.map((s) => s.sport));
+    for (const svc of services) {
+      const slug = slugify(svc.name);
+      if (servicesWithToday.has(slug)) continue;
+      const template = pickTemplate(allSnapshots, slug);
+      if (template.length === 0) continue;
+      for (const t of template) {
+        snapshots.push({ ...t, dateChecked: today, isAvailable: false });
+      }
+      logger.info(
+        { facility: facility.name, service: svc.name, syntheticSlots: template.length },
+        'reservanto off-season service synthesized as 100% booked',
+      );
+    }
+
     logger.info(
       {
         facility: facility.name,
@@ -125,6 +148,16 @@ async function selectService(frame: Frame, serviceId: string): Promise<boolean> 
   } catch {
     return false;
   }
+}
+
+/** Vybere sloty nejbližšího dne, pro který služba nějaká data má. */
+function pickTemplate(all: SlotSnapshot[], slug: string): SlotSnapshot[] {
+  const forService = all.filter((s) => s.sport === slug);
+  if (forService.length === 0) return [];
+  const dates = [...new Set(forService.map((s) => s.dateChecked))].sort();
+  const firstDate = dates[0];
+  if (!firstDate) return [];
+  return forService.filter((s) => s.dateChecked === firstDate);
 }
 
 async function extractCurrentService(
