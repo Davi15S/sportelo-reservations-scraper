@@ -35,6 +35,10 @@ export async function buildDailySummary(summaryDate: string): Promise<number> {
         facility_id, facility_name, sport, date_checked, time_slot, court_id, is_available, scraped_at
       FROM benchmarks.snapshots
       WHERE date_checked = ${summaryDate}
+        AND (
+          ${summaryDate}::date <> (NOW() AT TIME ZONE 'Europe/Prague')::date
+          OR time_slot >= (NOW() AT TIME ZONE 'Europe/Prague')::time
+        )
       ORDER BY facility_id, date_checked, time_slot, court_id, scraped_at DESC
     ) latest
     GROUP BY facility_id, facility_name, sport, date_checked
