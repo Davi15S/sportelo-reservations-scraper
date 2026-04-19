@@ -124,10 +124,27 @@ export async function sendAfternoonReport(args: {
           .join('\n'),
   }));
 
+  // Daily summary celkově (napříč facilities × sport)
+  const allPayloads = facilities.flatMap((f) => [...f.bySport.values()]);
+  const totalSlots = allPayloads.reduce((acc, p) => acc + p.total, 0);
+  const totalBooked = allPayloads.reduce((acc, p) => acc + p.booked, 0);
+  const totalAvail = totalSlots - totalBooked;
+  const avgPct = totalSlots > 0 ? Math.round((totalBooked / totalSlots) * 100) : 0;
+  const summaryLines = allPayloads.length === 0
+    ? ['_(žádná data v daily_summaries)_']
+    : [
+        `**Denní souhrn** — ${totalBooked}/${totalSlots} slotů obsazeno (${totalAvail} volných)`,
+        `Průměrná obsazenost: **${avgPct}%** napříč ${allPayloads.length} službami`,
+      ];
+
   const stamp = formatCzechDateTime(new Date());
   const embed: DiscordEmbed = {
     title: `Celodenní shrnutí — ${formatCzechDate(new Date())}`,
-    description: fields.length === 0 ? EMPTY : `Obsazenost per sportoviště / sport za celý den (${stamp}).`,
+    description: [
+      ...summaryLines,
+      '',
+      `_Generováno ${stamp}_`,
+    ].join('\n'),
     color: pickColor(args.errors.length > 0, args.results),
     fields: fields.length > 0 ? fields : undefined,
     footer: { text: `facilities: ${args.results.length - countFailed(args.results)} ok/${countFailed(args.results)} failed` },
