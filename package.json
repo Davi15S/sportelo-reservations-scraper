@@ -6,6 +6,7 @@
   "scripts": {
     "scrape": "tsx src/index.ts",
     "summary": "tsx src/bin/summary.ts",
+    "worker": "tsx src/bin/worker.ts",
     "dev": "tsx watch src/index.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
@@ -19,6 +20,7 @@
     "@notionhq/client": "^2.3.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.36.4",
+    "node-cron": "^3.0.3",
     "p-limit": "^6.1.0",
     "pg": "^8.20.0",
     "pino": "^9.5.0",
@@ -28,6 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
+    "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.29.0",
     "tsx": "^4.19.2",

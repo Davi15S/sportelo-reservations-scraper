@@ -1,0 +1,41 @@
+name: sportelo-reservations-scraper
+region: fra
+
+workers:
+  - name: scheduler
+    source_dir: /
+    dockerfile_path: Dockerfile
+    instance_count: 1
+    # Playwright Chromium potřebuje ~500MB RAM → basic-s (1GB) pro jistotu.
+    instance_size_slug: apps-s-1vcpu-1gb
+    run_command: npm run worker
+    github:
+      repo: sportelo/sportelo-reservations-scraper
+      branch: main
+      deploy_on_push: true
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: ""
+      - key: NOTION_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+        value: ""
+      - key: NOTION_DATABASE_ID
+        scope: RUN_TIME
+        type: SECRET
+        value: ""
+      - key: DISCORD_WEBHOOK_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: ""
+      - key: APP_ENV
+        scope: RUN_TIME
+        value: "production"
+      - key: SCRAPE_CONCURRENCY
+        scope: RUN_TIME
+        value: "3"
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: "info"

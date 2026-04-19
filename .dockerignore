@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+.git
+.github
+.vscode
+*.md
+drizzle/meta/_journal.json.bak
+coverage
+tmp
+probe-*.mjs
