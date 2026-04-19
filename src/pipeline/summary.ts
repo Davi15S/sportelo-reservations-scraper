@@ -2,7 +2,8 @@ import { sql } from 'drizzle-orm';
 import { closeDb, db } from '../db/client';
 import { logger } from '../utils/logger';
 import { todayInPrague } from '../utils/date';
-import { flushErrors, normalizeError } from './errors';
+import { flushErrors, normalizeError, type PendingError } from './errors';
+import { sendAfternoonReport } from './notify';
 
 /**
  * Agreguje snapshots do benchmarks.daily_summaries pro zadaný den.
@@ -52,20 +53,41 @@ export async function buildDailySummary(summaryDate: string): Promise<number> {
 }
 
 export async function runSummaryCli(): Promise<void> {
-  const arg = process.argv[2];
-  const target = arg ?? todayInPrague();
-  logger.info({ target }, 'building daily summary');
+  const args = parseSummaryArgs(process.argv.slice(2));
+  const target = args.target ?? todayInPrague();
+  const errors: PendingError[] = [];
+  logger.info({ target, notify: args.notify }, 'building daily summary');
+
   try {
     const n = await buildDailySummary(target);
     logger.info({ target, upserted: n }, 'summary done');
   } catch (err) {
     logger.error({ err: err instanceof Error ? err.message : String(err) }, 'summary failed');
-    await flushErrors(
-      [normalizeError({ stage: 'summary', err, errorType: 'db', context: { target } })],
-      null,
-    ).catch(() => undefined);
+    errors.push(normalizeError({ stage: 'summary', err, errorType: 'db', context: { target } }));
+    await flushErrors(errors, null).catch(() => undefined);
     process.exitCode = 1;
-  } finally {
-    await closeDb();
   }
+
+  if (args.notify === 'afternoon') {
+    try {
+      await sendAfternoonReport({ results: [], errors });
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, 'afternoon notify failed');
+    }
+  }
+
+  await closeDb();
+}
+
+function parseSummaryArgs(argv: string[]): { target: string | null; notify: 'afternoon' | null } {
+  let target: string | null = null;
+  let notify: 'afternoon' | null = null;
+  for (const a of argv) {
+    if (a.startsWith('--notify=')) {
+      notify = a.slice('--notify='.length) === 'afternoon' ? 'afternoon' : null;
+    } else if (!a.startsWith('--')) {
+      target = a;
+    }
+  }
+  return { target, notify };
 }

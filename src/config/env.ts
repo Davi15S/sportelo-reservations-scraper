@@ -7,6 +7,8 @@ const envSchema = z.object({
   NOTION_DATABASE_ID: z.string().min(1),
   SCRAPE_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
+  /** Optional — když chybí, Discord notifikace se neposílají. */
+  DISCORD_WEBHOOK_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -39,6 +39,7 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
       NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
       SCRAPE_CONCURRENCY: '3'
       LOG_LEVEL: 'info'
     steps:
@@ -63,5 +64,5 @@ jobs:
       - name: Scrape
         run: npm run scrape
 
-      - name: Build daily summary
-        run: npm run summary
+      - name: Build daily summary + afternoon Discord notification
+        run: npm run summary -- --notify=afternoon

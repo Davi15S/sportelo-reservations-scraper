@@ -9,12 +9,14 @@ import { insertScrapeRun, insertSnapshots } from './upsert';
 import { buildReport } from './report';
 import { validateRun } from './validate';
 import { flushErrors, normalizeError, type PendingError } from './errors';
+import { sendAfternoonReport, sendMorningReport } from './notify';
 import type { FacilityScrapeResult, Facility } from '../scrapers/types';
 import type { NewSnapshot } from '../db/schema/index';
 
 type RunOptions = {
   dryRun: boolean;
   facilityFilter: string | null;
+  notify: 'morning' | 'afternoon' | null;
 };
 
 export async function run(opts: RunOptions): Promise<void> {
@@ -116,12 +118,23 @@ export async function run(opts: RunOptions): Promise<void> {
 
   if (opts.dryRun) console.log(JSON.stringify({ ...report, errors: pendingErrors }, null, 2));
 
+  if (!opts.dryRun && opts.notify === 'morning') {
+    try {
+      await sendMorningReport({ results, errors: pendingErrors });
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, 'morning notify failed');
+    }
+  }
+  // afternoon notify fire z bin/summary.ts (po vygenerování daily_summaries)
+
   await shutdown();
 
   if (pendingErrors.length > 0 || validation.status === 'fail') {
     process.exitCode = 1;
   }
 }
+
+export const __exportedForSummary = { sendAfternoonReport };
 
 function detectPlatform(url: string): string | null {
   const host = safeHost(url);
