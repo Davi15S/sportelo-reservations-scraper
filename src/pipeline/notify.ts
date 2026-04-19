@@ -14,7 +14,8 @@ type FacilityRow<Payload> = {
   services: string[];
 };
 
-export async function sendMorningReport(args: {
+export async function sendScrapeReport(args: {
+  phase: 'morning' | 'afternoon';
   results: FacilityScrapeResult[];
   errors: PendingError[];
 }): Promise<void> {
@@ -68,8 +69,10 @@ export async function sendMorningReport(args: {
   }));
 
   const stamp = formatCzechDateTime(new Date());
+  const titleEmoji = args.phase === 'morning' ? '🌅' : '🌇';
+  const titlePhase = args.phase === 'morning' ? 'Ranní scrape' : 'Odpolední scrape';
   const embed: DiscordEmbed = {
-    title: `🌅 Ranní scrape — ${formatCzechDate(new Date())}`,
+    title: `${titleEmoji} ${titlePhase} — ${formatCzechDate(new Date())}`,
     description: fields.length === 0 ? EMPTY : `Posbíráno per sportoviště / sport (${stamp}).`,
     color: pickColor(args.errors.length > 0, args.results),
     fields: fields.length > 0 ? fields : undefined,
@@ -77,10 +80,10 @@ export async function sendMorningReport(args: {
   };
 
   await sendDiscord({ embeds: [embed] });
-  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: '🚨 Ranní scrape — chyby' });
+  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: `🚨 ${titlePhase} — chyby` });
 }
 
-export async function sendAfternoonReport(args: {
+export async function sendDailySummaryReport(args: {
   results: FacilityScrapeResult[];
   errors: PendingError[];
 }): Promise<void> {
@@ -149,7 +152,7 @@ export async function sendAfternoonReport(args: {
   };
 
   await sendDiscord({ embeds: [embed] });
-  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: '🚨 Odpolední scrape — chyby' });
+  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: '🚨 Celodenní shrnutí — chyby' });
 }
 
 export async function sendErrorReport(args: {

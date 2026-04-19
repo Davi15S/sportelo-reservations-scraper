@@ -3,7 +3,7 @@ import { closeDb, db } from '../db/client';
 import { logger } from '../utils/logger';
 import { todayInPrague } from '../utils/date';
 import { flushErrors, normalizeError, type PendingError } from './errors';
-import { sendAfternoonReport } from './notify';
+import { sendDailySummaryReport } from './notify';
 
 /**
  * Agreguje snapshots do benchmarks.daily_summaries pro zadaný den.
@@ -70,9 +70,9 @@ export async function runSummaryCli(): Promise<void> {
 
   if (args.notify === 'afternoon') {
     try {
-      await sendAfternoonReport({ results: [], errors });
+      await sendDailySummaryReport({ results: [], errors });
     } catch (err) {
-      logger.error({ err: err instanceof Error ? err.message : String(err) }, 'afternoon notify failed');
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, 'summary notify failed');
     }
   }
 

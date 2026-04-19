@@ -61,8 +61,8 @@ jobs:
       - name: Apply DB migrations (idempotent)
         run: npm run db:migrate
 
-      - name: Scrape
-        run: npm run scrape
+      - name: Scrape + afternoon Discord notification
+        run: npm run scrape -- --notify=afternoon
 
-      - name: Build daily summary + afternoon Discord notification
+      - name: Build daily summary + Discord summary notification
         run: npm run summary -- --notify=afternoon

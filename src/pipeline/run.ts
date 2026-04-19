@@ -9,7 +9,7 @@ import { insertScrapeRun, insertSnapshots } from './upsert';
 import { buildReport } from './report';
 import { validateRun } from './validate';
 import { flushErrors, normalizeError, type PendingError } from './errors';
-import { sendAfternoonReport, sendMorningReport } from './notify';
+import { sendScrapeReport } from './notify';
 import type { FacilityScrapeResult, Facility } from '../scrapers/types';
 import type { NewSnapshot } from '../db/schema/index';
 
@@ -118,14 +118,14 @@ export async function run(opts: RunOptions): Promise<void> {
 
   if (opts.dryRun) console.log(JSON.stringify({ ...report, errors: pendingErrors }, null, 2));
 
-  if (!opts.dryRun && opts.notify === 'morning') {
+  if (!opts.dryRun && (opts.notify === 'morning' || opts.notify === 'afternoon')) {
     try {
-      await sendMorningReport({ results, errors: pendingErrors });
+      await sendScrapeReport({ phase: opts.notify, results, errors: pendingErrors });
     } catch (err) {
-      logger.error({ err: err instanceof Error ? err.message : String(err) }, 'morning notify failed');
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, 'scrape notify failed');
     }
   }
-  // afternoon notify fire z bin/summary.ts (po vygenerování daily_summaries)
+  // Denní shrnutí (📊) posílá bin/summary.ts po vygenerování daily_summaries.
 
   await shutdown();
 
@@ -133,8 +133,6 @@ export async function run(opts: RunOptions): Promise<void> {
     process.exitCode = 1;
   }
 }
-
-export const __exportedForSummary = { sendAfternoonReport };
 
 function detectPlatform(url: string): string | null {
   const host = safeHost(url);
