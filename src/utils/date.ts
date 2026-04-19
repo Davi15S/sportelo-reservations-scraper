@@ -12,3 +12,21 @@ export function todayInPrague(): string {
   });
   return fmt.format(new Date());
 }
+
+/**
+ * Aktuální čas v Europe/Prague převedený na minuty od půlnoci.
+ * Používá se k vyloučení právě probíhajících slotů ze zaplněnosti (nelze je
+ * už zarezervovat) — start slotu < now → invalid.
+ */
+export function nowMinutesInPrague(): number {
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Prague',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(new Date());
+  const hour = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0', 10);
+  const minute = parseInt(parts.find((p) => p.type === 'minute')?.value ?? '0', 10);
+  return hour * 60 + minute;
+}

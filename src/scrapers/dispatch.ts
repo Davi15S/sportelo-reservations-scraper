@@ -1,11 +1,13 @@
 import type { Facility, FacilityScrapeResult } from './types';
 import { scrapeReservantoFacility } from './reservanto/index';
+import { scrapeJdemenatoFacility } from './jdemenato/index';
 
 export async function scrapeFacility(facility: Facility): Promise<FacilityScrapeResult> {
   switch (facility.reservationSystem) {
     case 'reservanto':
       return await scrapeReservantoFacility(facility);
     case 'jdemenato':
+      return await scrapeJdemenatoFacility(facility);
     case 'bizzi':
     case 'sroger':
       return {
