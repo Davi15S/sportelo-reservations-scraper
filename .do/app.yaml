@@ -10,7 +10,7 @@ jobs:
     instance_size_slug: apps-s-1vcpu-0.5gb
     run_command: npm run db:migrate
     github:
-      repo: sportelo/sportelo-reservations-scraper
+      repo: Davi15S/sportelo-reservations-scraper
       branch: main
       deploy_on_push: true
     envs:
@@ -34,7 +34,7 @@ workers:
     instance_size_slug: apps-s-1vcpu-1gb
     run_command: npm run worker
     github:
-      repo: sportelo/sportelo-reservations-scraper
+      repo: Davi15S/sportelo-reservations-scraper
       branch: main
       deploy_on_push: true
     envs:
