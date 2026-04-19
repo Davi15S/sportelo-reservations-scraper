@@ -109,9 +109,17 @@ export async function sendAfternoonReport(args: {
     courts: r.courts_count,
   }));
 
-  const fields: NonNullable<DiscordEmbed['fields']> = facilities.map((f) => ({
-    name: f.facilityName,
-    value: f.services.length === 0
+  const fields: NonNullable<DiscordEmbed['fields']> = facilities.map((f) => {
+    const payloads = [...f.bySport.values()];
+    const totalSlots = payloads.reduce((acc, p) => acc + p.total, 0);
+    const totalBooked = payloads.reduce((acc, p) => acc + p.booked, 0);
+    const totalAvail = totalSlots - totalBooked;
+    const avgPct = totalSlots > 0 ? Math.round((totalBooked / totalSlots) * 100) : 0;
+    const header = payloads.length === 0
+      ? '_(žádná data)_'
+      : `**Denní souhrn:** ${totalBooked}/${totalSlots} slotů obsazeno (${totalAvail} volných) — průměr **${avgPct}%**`;
+
+    const perService = f.services.length === 0
       ? EMPTY
       : f.services
           .map((name) => {
@@ -121,30 +129,15 @@ export async function sendAfternoonReport(args: {
               ? `\`${slug}\` — **${p.pct}%** (${p.booked}/${p.total} obsazeno · ${p.courts} kurty)`
               : `\`${slug}\` — mimo sezónu`;
           })
-          .join('\n'),
-  }));
+          .join('\n');
 
-  // Daily summary celkově (napříč facilities × sport)
-  const allPayloads = facilities.flatMap((f) => [...f.bySport.values()]);
-  const totalSlots = allPayloads.reduce((acc, p) => acc + p.total, 0);
-  const totalBooked = allPayloads.reduce((acc, p) => acc + p.booked, 0);
-  const totalAvail = totalSlots - totalBooked;
-  const avgPct = totalSlots > 0 ? Math.round((totalBooked / totalSlots) * 100) : 0;
-  const summaryLines = allPayloads.length === 0
-    ? ['_(žádná data v daily_summaries)_']
-    : [
-        `**Denní souhrn** — ${totalBooked}/${totalSlots} slotů obsazeno (${totalAvail} volných)`,
-        `Průměrná obsazenost: **${avgPct}%** napříč ${allPayloads.length} službami`,
-      ];
+    return { name: f.facilityName, value: `${header}\n${perService}` };
+  });
 
   const stamp = formatCzechDateTime(new Date());
   const embed: DiscordEmbed = {
     title: `Celodenní shrnutí — ${formatCzechDate(new Date())}`,
-    description: [
-      ...summaryLines,
-      '',
-      `_Generováno ${stamp}_`,
-    ].join('\n'),
+    description: fields.length === 0 ? EMPTY : `Obsazenost per sportoviště za celý den (${stamp}).`,
     color: pickColor(args.errors.length > 0, args.results),
     fields: fields.length > 0 ? fields : undefined,
     footer: { text: `facilities: ${args.results.length - countFailed(args.results)} ok/${countFailed(args.results)} failed` },
