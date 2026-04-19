@@ -6,13 +6,11 @@ import { todayInPrague } from '../utils/date';
 import type { FacilityScrapeResult } from '../scrapers/types';
 import type { PendingError } from './errors';
 
-const EMPTY = '(žádná data)';
+const EMPTY = '_(žádná data)_';
 
 type FacilityRow<Payload> = {
   facilityName: string;
-  // (slug sport) → payload (agregace z DB)
   bySport: Map<string, Payload>;
-  // všechny service names, co Reservanto ohlásil (i bez dnešních dat)
   services: string[];
 };
 
@@ -45,29 +43,29 @@ export async function sendMorningReport(args: {
   }));
 
   const fields: NonNullable<DiscordEmbed['fields']> = facilities.map((f) => ({
-    name: f.facilityName,
-    value: f.services
-      .map((name) => {
-        const slug = slugify(name);
-        const p = f.bySport.get(slug);
-        return p
-          ? `\`${slug}\`: ${p.total} slotů (${p.available} volných)`
-          : `\`${slug}\`: 0 slotů (mimo sezónu)`;
-      })
-      .join('\n'),
+    name: `🏟️  ${f.facilityName}`,
+    value: f.services.length === 0 ? EMPTY : f.services.map((name) => renderMorningLine(name, f.bySport)).join('\n'),
   }));
 
+  const totalSlots = sumBy(facilities, (f) => [...f.bySport.values()].reduce((acc, p) => acc + p.total, 0));
+  const totalFree = sumBy(facilities, (f) => [...f.bySport.values()].reduce((acc, p) => acc + p.available, 0));
+  const servicesTracked = sumBy(facilities, (f) => f.bySport.size);
+
   const embed: DiscordEmbed = {
-    title: `Ranní scrape — ${today}`,
-    description: fields.length === 0 ? EMPTY : `Posbíráno per sportoviště / sport (${today}).`,
+    title: `🌅 Ranní scrape — ${formatCzechDate(new Date())}`,
+    description: [
+      `⏱ Běh dokončen v **${formatCzechTime(new Date())}** (Europe/Prague)`,
+      `📊 Posbíráno **${totalSlots}** slotů · **${totalFree}** volných · ${servicesTracked} aktivních služeb`,
+    ].join('\n'),
     color: pickColor(args.errors.length > 0, args.results),
     fields: fields.length > 0 ? fields : undefined,
-    timestamp: new Date().toISOString(),
-    footer: { text: `facilities: ${args.results.length - countFailed(args.results)} ok/${countFailed(args.results)} failed` },
+    footer: {
+      text: `${args.results.length - countFailed(args.results)}/${args.results.length} sportovišť OK${args.errors.length > 0 ? ` · ${args.errors.length} chyb` : ''}`,
+    },
   };
 
   await sendDiscord({ embeds: [embed] });
-  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: 'Ranní scrape — chyby' });
+  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: '🚨 Ranní scrape — chyby' });
 }
 
 export async function sendAfternoonReport(args: {
@@ -95,34 +93,37 @@ export async function sendAfternoonReport(args: {
     total: r.total_slots,
     available: r.available_slots,
     booked: r.booked_slots,
-    pct: r.occupancy_pct,
+    pct: Number(r.occupancy_pct),
     courts: r.courts_count,
   }));
 
   const fields: NonNullable<DiscordEmbed['fields']> = facilities.map((f) => ({
-    name: f.facilityName,
-    value: f.services
-      .map((name) => {
-        const slug = slugify(name);
-        const p = f.bySport.get(slug);
-        return p
-          ? `\`${slug}\` — **${p.pct}%** (${p.booked}/${p.total} obsazeno · ${p.courts} kurty)`
-          : `\`${slug}\` — mimo sezónu`;
-      })
-      .join('\n'),
+    name: `🏟️  ${f.facilityName}`,
+    value: f.services.length === 0 ? EMPTY : f.services.map((name) => renderAfternoonLine(name, f.bySport)).join('\n'),
   }));
 
+  const allPayloads = facilities.flatMap((f) => [...f.bySport.values()]);
+  const avgOccupancy = allPayloads.length > 0
+    ? Math.round((allPayloads.reduce((acc, p) => acc + p.pct, 0) / allPayloads.length) * 10) / 10
+    : 0;
+  const totalSlots = allPayloads.reduce((acc, p) => acc + p.total, 0);
+  const totalBooked = allPayloads.reduce((acc, p) => acc + p.booked, 0);
+
   const embed: DiscordEmbed = {
-    title: `Celodenní shrnutí — ${today}`,
-    description: fields.length === 0 ? EMPTY : 'Obsazenost per sportoviště / sport za celý den.',
+    title: `🌇 Celodenní shrnutí — ${formatCzechDate(new Date())}`,
+    description: [
+      `⏱ Uzavřeno v **${formatCzechTime(new Date())}** (Europe/Prague)`,
+      `📊 **${totalBooked}/${totalSlots}** slotů obsazeno · průměrná obsazenost **${avgOccupancy}%**`,
+    ].join('\n'),
     color: pickColor(args.errors.length > 0, args.results),
     fields: fields.length > 0 ? fields : undefined,
-    timestamp: new Date().toISOString(),
-    footer: { text: `facilities: ${args.results.length - countFailed(args.results)} ok/${countFailed(args.results)} failed` },
+    footer: {
+      text: `${args.results.length - countFailed(args.results)}/${args.results.length} sportovišť OK${args.errors.length > 0 ? ` · ${args.errors.length} chyb` : ''}`,
+    },
   };
 
   await sendDiscord({ embeds: [embed] });
-  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: 'Odpolední scrape — chyby' });
+  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: '🚨 Odpolední scrape — chyby' });
 }
 
 export async function sendErrorReport(args: {
@@ -138,21 +139,38 @@ export async function sendErrorReport(args: {
 
   const embed: DiscordEmbed = {
     title: args.title,
-    description: `Zachyceno **${args.errors.length}** chyb.`,
+    description: [
+      `⏱ **${formatCzechDateTime(new Date())}** (Europe/Prague)`,
+      `Zachyceno **${args.errors.length}** chyb během běhu.`,
+    ].join('\n'),
     color: COLOR.red,
     fields,
-    timestamp: new Date().toISOString(),
-    footer: { text: args.errors.length > 10 ? `+${args.errors.length - 10} dalších v DB` : 'detail: benchmarks.scrape_errors' },
+    footer: {
+      text: args.errors.length > 10 ? `+${args.errors.length - 10} dalších · detail: benchmarks.scrape_errors` : 'detail: benchmarks.scrape_errors',
+    },
   };
 
   await sendDiscord({ embeds: [embed] });
 }
 
-/**
- * Fetchne všechny (facility_name → service_names[]) z dnešních scrape_runs.
- * Merge přes reporty ranního + odpoledního běhu, takže známe kompletní
- * seznam služeb i pro facility s nulovými dnešními sloty (mimo sezónu).
- */
+function renderMorningLine(name: string, bySport: Map<string, { total: number; available: number }>): string {
+  const slug = slugify(name);
+  const p = bySport.get(slug);
+  if (!p) return `💤  **${name}** — mimo sezónu`;
+  const pct = p.total > 0 ? Math.round(((p.total - p.available) / p.total) * 100) : 0;
+  return `🎾  **${name}** — ${p.total} slotů · **${p.available} volných** (obsazenost ${pct} %)`;
+}
+
+function renderAfternoonLine(
+  name: string,
+  bySport: Map<string, { total: number; available: number; booked: number; pct: number; courts: number }>,
+): string {
+  const slug = slugify(name);
+  const p = bySport.get(slug);
+  if (!p) return `💤  **${name}** — mimo sezónu`;
+  return `🎾  **${name}** — **${p.pct} %** obsazeno (${p.booked}/${p.total} slotů · ${p.courts} kurty)`;
+}
+
 async function fetchTodayServices(): Promise<Map<string, string[]>> {
   const today = todayInPrague();
   const rows = await db.execute<{ report_json: unknown }>(sql`
@@ -195,21 +213,50 @@ function mergeFacilities<Row extends { facility_name: string; sport: string }, P
     inner.set(r.sport, toPayload(r));
     byName.set(r.facility_name, inner);
   }
-  // Sjednotit facility names z obou zdrojů (snapshots + services list)
   const allNames = new Set<string>([...byName.keys(), ...services.keys()]);
   const out: FacilityRow<Payload>[] = [];
-  for (const name of [...allNames].sort()) {
+  for (const name of [...allNames].sort((a, b) => a.localeCompare(b, 'cs'))) {
     const bySport = byName.get(name) ?? new Map<string, Payload>();
     const svcList = services.get(name);
-    // Pokud známe služby, použij je (i ty s prázdnými daty). Jinak fallback
-    // na služby, pro které máme alespoň nějaká data.
-    const serviceNames =
-      svcList && svcList.length > 0
-        ? svcList
-        : [...bySport.keys()].map((slug) => slug); // slug sám sobě jako fallback name
+    const serviceNames = svcList && svcList.length > 0 ? svcList : [...bySport.keys()];
     out.push({ facilityName: name, bySport, services: serviceNames });
   }
   return out;
+}
+
+const CZ_DATE_FMT = new Intl.DateTimeFormat('cs-CZ', {
+  timeZone: 'Europe/Prague',
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+const CZ_TIME_FMT = new Intl.DateTimeFormat('cs-CZ', {
+  timeZone: 'Europe/Prague',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const CZ_DT_FMT = new Intl.DateTimeFormat('cs-CZ', {
+  timeZone: 'Europe/Prague',
+  day: 'numeric',
+  month: 'numeric',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function formatCzechDate(d: Date): string {
+  return CZ_DATE_FMT.format(d);
+}
+function formatCzechTime(d: Date): string {
+  return CZ_TIME_FMT.format(d);
+}
+function formatCzechDateTime(d: Date): string {
+  return CZ_DT_FMT.format(d);
+}
+
+function sumBy<T>(items: T[], get: (t: T) => number): number {
+  return items.reduce((acc, it) => acc + get(it), 0);
 }
 
 function countFailed(results: FacilityScrapeResult[]): number {
