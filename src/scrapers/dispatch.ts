@@ -2,7 +2,22 @@ import type { Facility, FacilityScrapeResult } from './types';
 import { scrapeReservantoFacility } from './reservanto/index';
 
 export async function scrapeFacility(facility: Facility): Promise<FacilityScrapeResult> {
-  // MVP: jediná podporovaná platforma = Reservanto. Dispatch podle hosta
-  // rozšíříme, až přibude druhá platforma.
-  return await scrapeReservantoFacility(facility);
+  switch (facility.reservationSystem) {
+    case 'reservanto':
+      return await scrapeReservantoFacility(facility);
+    case 'jdemenato':
+    case 'bizzi':
+    case 'sroger':
+      return {
+        status: 'failed',
+        facility,
+        error: `scraper module for '${facility.reservationSystem}' is not implemented yet`,
+      };
+    default:
+      return {
+        status: 'failed',
+        facility,
+        error: `unknown reservation system: ${String((facility as Facility).reservationSystem)}`,
+      };
+  }
 }

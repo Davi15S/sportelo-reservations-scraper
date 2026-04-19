@@ -59,7 +59,7 @@ export async function run(opts: RunOptions): Promise<void> {
         stage: 'scrape',
         err: new Error(r.error),
         facility: { id: r.facility.id, name: r.facility.name, reservationUrl: r.facility.reservationUrl },
-        platform: detectPlatform(r.facility.reservationUrl),
+        platform: r.facility.reservationSystem,
       }),
     );
   }
@@ -134,21 +134,6 @@ export async function run(opts: RunOptions): Promise<void> {
   }
 }
 
-function detectPlatform(url: string): string | null {
-  const host = safeHost(url);
-  if (!host) return null;
-  if (host.endsWith('.e-rezervace.cz') || host === 'e-rezervace.cz') return 'smarcoms';
-  return 'reservanto';
-}
-
-function safeHost(url: string): string | null {
-  try {
-    return new URL(url).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
 function toSnapshotRows(
   facility: Facility,
   slots: {
@@ -164,7 +149,9 @@ function toSnapshotRows(
     facilityId: facility.id,
     facilityName: facility.name,
     reservationUrl: facility.reservationUrl,
-    sport: s.sport ?? facility.sport,
+    // Sport per-slot z BookingServiceName; když parser nezjistí, fallback na
+    // reservationSystem (loose — lepší než žádný slug).
+    sport: s.sport ?? facility.reservationSystem,
     dateChecked: s.dateChecked,
     timeSlot: s.timeSlot,
     courtId: s.courtId,

@@ -15,6 +15,13 @@
       "when": 1776584693407,
       "tag": "0001_steady_kid_colt",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776592500000,
+      "tag": "0002_facility_reservation_system",
+      "breakpoints": true
     }
   ]
 }

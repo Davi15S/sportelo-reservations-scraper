@@ -8,7 +8,8 @@ export const facilities = benchmarks.table(
     notionPageId: text('notion_page_id').notNull(),
     name: text('name').notNull(),
     reservationUrl: text('reservation_url').notNull(),
-    sport: text('sport').notNull(),
+    /** 'reservanto' | 'jdemenato' | 'bizzi' | 'sroger' — zdroj z Notion. */
+    reservationSystem: text('reservation_system').notNull(),
     active: boolean('active').notNull().default(true),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }).notNull().defaultNow(),
