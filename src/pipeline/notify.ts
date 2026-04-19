@@ -135,12 +135,17 @@ export async function sendAfternoonReport(args: {
   });
 
   const stamp = formatCzechDateTime(new Date());
+  const latestRun = await fetchLatestRunStats();
   const embed: DiscordEmbed = {
     title: `📊 Celodenní shrnutí — ${formatCzechDate(new Date())}`,
     description: fields.length === 0 ? EMPTY : `Obsazenost per sportoviště za celý den (${stamp}).`,
     color: pickColor(args.errors.length > 0, args.results),
     fields: fields.length > 0 ? fields : undefined,
-    footer: { text: `facilities: ${args.results.length - countFailed(args.results)} ok/${countFailed(args.results)} failed` },
+    footer: {
+      text: latestRun
+        ? `poslední scrape: ${latestRun.ok} ok · ${latestRun.failed} failed · status ${latestRun.status}`
+        : 'poslední scrape: nedostupno',
+    },
   };
 
   await sendDiscord({ embeds: [embed] });
@@ -167,6 +172,25 @@ export async function sendErrorReport(args: {
   };
 
   await sendDiscord({ embeds: [embed] });
+}
+
+async function fetchLatestRunStats(): Promise<{ ok: number; failed: number; status: string } | null> {
+  const today = todayInPrague();
+  const r = await db.execute<{
+    facilities_ok: number;
+    facilities_failed: number;
+    validation_status: string;
+  }>(sql`
+    SELECT facilities_ok, facilities_failed, validation_status
+    FROM benchmarks.scrape_runs
+    WHERE started_at >= ${`${today} 00:00:00`}::timestamptz
+      AND started_at <  ${`${today} 00:00:00`}::timestamptz + interval '1 day'
+    ORDER BY started_at DESC
+    LIMIT 1
+  `);
+  const row = r.rows?.[0];
+  if (!row) return null;
+  return { ok: row.facilities_ok, failed: row.facilities_failed, status: row.validation_status };
 }
 
 async function fetchTodayServices(): Promise<Map<string, string[]>> {
