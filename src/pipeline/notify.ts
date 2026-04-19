@@ -20,10 +20,9 @@ export async function sendMorningReport(args: {
 }): Promise<void> {
   const today = todayInPrague();
   /**
-   * Obsazenost se počítá z **nadcházejících** slotů (time_slot >= aktuální
-   * čas v Europe/Prague). Proběhlé sloty nejsou brány jako obsazené —
-   * Reservanto je označuje `is_available=false` jen proto, že už nelze
-   * zarezervovat, ne protože jsou skutečně plné.
+   * Denominator = pouze validní sloty (které parser vůbec zapsal do DB).
+   * Scraper vylučuje proběhlé a zavřené hodiny na úrovni extraktoru, takže
+   * tady jen groupujeme a sčítáme bez dalšího time filteru.
    */
   const rows = await db.execute<{
     facility_name: string;
@@ -41,7 +40,6 @@ export async function sendMorningReport(args: {
         facility_id, facility_name, sport, is_available, scraped_at
       FROM benchmarks.snapshots
       WHERE date_checked = ${today}
-        AND time_slot >= (NOW() AT TIME ZONE 'Europe/Prague')::time
       ORDER BY facility_id, date_checked, time_slot, court_id, sport, scraped_at DESC
     ) latest
     GROUP BY facility_name, sport

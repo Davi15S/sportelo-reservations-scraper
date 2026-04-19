@@ -99,6 +99,7 @@ export function daysToSnapshots(
           const dateChecked = av.StartTime.slice(0, 10);
           const timeSlot = `${av.StartTime.slice(11, 19)}`;
           if (dateChecked.length !== 10 || timeSlot.length !== 8) continue;
+          if (!isSlotValid(av)) continue; // proběhlé / zavřené / mimo otevírací dobu → vyloučit
           out.push({
             dateChecked,
             timeSlot,
@@ -145,6 +146,25 @@ export function slugify(s: string): string {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Validní slot = takový, který je skutečně v play (buď volný k rezervaci, nebo
+ * obsazený rezervací). Vyloučí proběhlé sloty a zavřené hodiny — ty Reservanto
+ * značí absencí AppointmentModel + CanBeBooked=false, nebo explicitním stavem
+ * "zavřeno". Tyto sloty nejsou obsazeností, ale prostě nedostupné.
+ */
+function isSlotValid(av: ReservantoAvailability): boolean {
+  if (av.AppointmentModel) {
+    const status = (av.AppointmentModel.Availability ?? '').toLowerCase();
+    if (['zavřeno', 'zavreno', 'closed', 'unavailable', 'mimo', 'nedostupne', 'nedostupné'].includes(status)) {
+      return false;
+    }
+    return true;
+  }
+  if (av.CanBeBooked === true) return true;
+  if (av.IsFree === true) return true;
+  return false;
 }
 
 function isSlotAvailable(av: ReservantoAvailability): boolean {
