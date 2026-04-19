@@ -69,7 +69,7 @@ export async function sendMorningReport(args: {
 
   const stamp = formatCzechDateTime(new Date());
   const embed: DiscordEmbed = {
-    title: `Ranní scrape — ${formatCzechDate(new Date())}`,
+    title: `🌅 Ranní scrape — ${formatCzechDate(new Date())}`,
     description: fields.length === 0 ? EMPTY : `Posbíráno per sportoviště / sport (${stamp}).`,
     color: pickColor(args.errors.length > 0, args.results),
     fields: fields.length > 0 ? fields : undefined,
@@ -77,7 +77,7 @@ export async function sendMorningReport(args: {
   };
 
   await sendDiscord({ embeds: [embed] });
-  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: 'Ranní scrape — chyby' });
+  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: '🚨 Ranní scrape — chyby' });
 }
 
 export async function sendAfternoonReport(args: {
@@ -136,7 +136,7 @@ export async function sendAfternoonReport(args: {
 
   const stamp = formatCzechDateTime(new Date());
   const embed: DiscordEmbed = {
-    title: `Celodenní shrnutí — ${formatCzechDate(new Date())}`,
+    title: `📊 Celodenní shrnutí — ${formatCzechDate(new Date())}`,
     description: fields.length === 0 ? EMPTY : `Obsazenost per sportoviště za celý den (${stamp}).`,
     color: pickColor(args.errors.length > 0, args.results),
     fields: fields.length > 0 ? fields : undefined,
@@ -144,7 +144,7 @@ export async function sendAfternoonReport(args: {
   };
 
   await sendDiscord({ embeds: [embed] });
-  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: 'Odpolední scrape — chyby' });
+  if (args.errors.length > 0) await sendErrorReport({ errors: args.errors, title: '🚨 Odpolední scrape — chyby' });
 }
 
 export async function sendErrorReport(args: {
