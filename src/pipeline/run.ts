@@ -60,6 +60,7 @@ export async function run(opts: RunOptions): Promise<void> {
         err: new Error(r.error),
         facility: { id: r.facility.id, name: r.facility.name, reservationUrl: r.facility.reservationUrl },
         platform: r.facility.reservationSystem,
+        context: r.debugScreenshot ? { debugScreenshotBase64: r.debugScreenshot } : null,
       }),
     );
   }

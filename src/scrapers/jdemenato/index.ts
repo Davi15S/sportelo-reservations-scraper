@@ -100,19 +100,49 @@ export async function scrapeJdemenatoFacility(facility: Facility): Promise<Facil
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err: message, facility: facility.name }, 'jdemenato scrape failed');
-    return { status: 'failed', facility, error: message };
+    const debugScreenshot = await captureScreenshotBase64(page);
+    return { status: 'failed', facility, error: message, debugScreenshot };
   } finally {
     await context.close();
   }
 }
 
 /**
- * Najde iframe ukazující na jdemenato.cz. Když URL sama už JE jdemenato (user
- * dal přímý link), vrací main frame.
+ * Zachytí screenshot jako base64 pro post-mortem debug (CF challenge vs. 403).
+ * Oříznuté na 200 KB base64 (~150 KB PNG), aby řádek v scrape_errors.context
+ * JSONB nenabobtnal. Tichá failovka — screenshot error nesmí maskovat původní.
+ */
+async function captureScreenshotBase64(page: Page): Promise<string | null> {
+  try {
+    const buf = await page.screenshot({ fullPage: true, timeout: 10_000 });
+    const b64 = buf.toString('base64');
+    return b64.length > 200_000 ? b64.slice(0, 200_000) : b64;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Najde iframe ukazující na jdemenato.cz a naviguje stránku přímo na jeho src.
+ * Tím obchází wrapper (tempotenis.cz, atd.) a případné CF vrstvy na parent stránce
+ * — worker pak mluví přímo s jdemenato. Když URL sama už JE jdemenato (user
+ * dal přímý link), vrací main frame bez navigace.
+ *
+ * Fallback: pokud iframe src nelze extrahovat, vrací klasický contentFrame().
  */
 async function resolveJdemenatoFrame(page: Page): Promise<Frame | null> {
   if (page.url().includes('jdemenato.cz')) return page.mainFrame();
   try {
+    await page.waitForSelector(IFRAME_SELECTOR, { timeout: IFRAME_WAIT_MS });
+    const iframeSrc = await page
+      .locator(IFRAME_SELECTOR)
+      .first()
+      .getAttribute('src')
+      .catch(() => null);
+    if (iframeSrc && iframeSrc.includes('jdemenato.cz')) {
+      await page.goto(iframeSrc, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+      return page.mainFrame();
+    }
     const handle = await page.waitForSelector(IFRAME_SELECTOR, { timeout: IFRAME_WAIT_MS });
     return await handle.contentFrame();
   } catch {

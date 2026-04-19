@@ -31,4 +31,7 @@ export type FacilityScrapeResult =
       status: 'failed';
       facility: Facility;
       error: string;
+      /** Base64 PNG fullpage screenshot v momentě pádu. Slouží k post-mortem debugu
+       *  (CF challenge vs. 403 vs. rate limit). Oříznutý na ~200 KB aby zapadl do JSONB. */
+      debugScreenshot?: string | null;
     };

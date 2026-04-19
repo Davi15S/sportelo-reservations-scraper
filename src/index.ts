@@ -15,7 +15,17 @@ function parseArgs(argv: string[]): { dryRun: boolean; facilityFilter: string | 
 
 const opts = parseArgs(process.argv.slice(2));
 
-run(opts).catch((err) => {
-  logger.error({ err: err instanceof Error ? err.message : String(err) }, 'scrape crashed');
-  process.exit(1);
-});
+/**
+ * Explicitní `process.exit()` po run/crash — bez něj by Node event loop čekal na
+ * pending handles (playwright WebSocket, node-pg timeouts), což nechá GH Actions
+ * worker stucked dokud workflow timeout nekillne job. Pečlivé `closeBrowser()`/
+ * `closeDb()` v `shutdown()` by mělo stačit, ale pro jistotu vynutíme exit tady.
+ */
+run(opts)
+  .then(() => {
+    process.exit(process.exitCode ?? 0);
+  })
+  .catch((err) => {
+    logger.error({ err: err instanceof Error ? err.message : String(err) }, 'scrape crashed');
+    process.exit(1);
+  });
