@@ -84,7 +84,10 @@ function findBalancedEnd(src: string, openIdx: number): number {
   return -1;
 }
 
-export function daysToSnapshots(days: ReservantoDay[]): SlotSnapshot[] {
+export function daysToSnapshots(
+  days: ReservantoDay[],
+  serviceName: string | null = null,
+): SlotSnapshot[] {
   const out: SlotSnapshot[] = [];
   for (const day of days) {
     for (const loc of day.locations ?? []) {
@@ -101,7 +104,7 @@ export function daysToSnapshots(days: ReservantoDay[]): SlotSnapshot[] {
             timeSlot,
             courtId,
             isAvailable: isSlotAvailable(av),
-            sport: detectSport(av, src),
+            sport: detectSport(av, src, serviceName),
           });
         }
       }
@@ -111,21 +114,30 @@ export function daysToSnapshots(days: ReservantoDay[]): SlotSnapshot[] {
 }
 
 /**
- * Sport per slot = slug z Reservanto `BookingServiceName`. Multi-sport
- * sportoviště (např. Padel Neride) vracejí 3+ různé služby ("Padle tenis -
- * hala zima", "Padel tenis - hala léto", "Tenis hala"). Každá se ukládá
- * jako samostatný sport, takže `daily_summaries` dá per-službu rollup.
+ * Sport per slot = slug z Reservanto `BookingServiceName` (služba, ne kurt).
+ * Multi-sport sportoviště (např. Padel Neride) vracejí 3+ různé služby
+ * ("Padle tenis - hala zima", "Padel tenis - hala léto", "Tenis hala").
+ * Každá se ukládá jako samostatný sport, takže `daily_summaries` dá
+ * per-službu rollup.
  *
- * Fallback: název zdroje (kurtu). Pokud ani jedno → null → pipeline použije
- * facility.sport z Notion (monosport sportoviště).
+ * Žádný fallback na `src.name` — to je název kurtu, ne sport. Když service
+ * name chybí, vrátí null a pipeline použije `facility.sport` z Notion.
+ *
+ * Volitelný `serviceOverride` použijeme když data pro slot nemají
+ * AppointmentModel (slot zatím nezarezervován) — scraper jede per-service
+ * dropdown a ví, kterou službu právě načetl.
  */
-function detectSport(av: ReservantoAvailability, src: ReservantoSource): string | null {
-  const raw = av.AppointmentModel?.BookingServiceName ?? src.name ?? null;
+function detectSport(
+  av: ReservantoAvailability,
+  _src: ReservantoSource,
+  serviceOverride: string | null,
+): string | null {
+  const raw = av.AppointmentModel?.BookingServiceName ?? serviceOverride;
   if (!raw) return null;
   return slugify(raw);
 }
 
-function slugify(s: string): string {
+export function slugify(s: string): string {
   return s
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '') // strip diacritics (ě, á, í, …)
