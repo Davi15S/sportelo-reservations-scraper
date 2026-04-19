@@ -17,9 +17,18 @@ export type RunReport = {
     url: string;
     status: 'ok' | 'failed';
     snapshotCount: number;
+    /** Raw service names detekované na platformě (před slugify). */
+    services: string[];
     error?: string;
   }>;
 };
+
+function extractServices(raw: unknown): string[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const services = (raw as { services?: unknown }).services;
+  if (!Array.isArray(services)) return [];
+  return services.filter((s): s is string => typeof s === 'string' && s.length > 0);
+}
 
 export function buildReport(args: {
   startedAt: Date;
@@ -45,6 +54,7 @@ export function buildReport(args: {
       url: r.facility.reservationUrl,
       status: r.status,
       snapshotCount: r.status === 'ok' ? r.snapshots.length : 0,
+      services: r.status === 'ok' ? extractServices(r.rawSample) : [],
       ...(r.status === 'failed' ? { error: r.error } : {}),
     })),
   };
