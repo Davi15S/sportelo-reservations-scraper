@@ -1,6 +1,30 @@
 name: sportelo-reservations-scraper
 region: fra
 
+jobs:
+  - name: migrate
+    kind: PRE_DEPLOY
+    source_dir: /
+    dockerfile_path: Dockerfile
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    run_command: npm run db:migrate
+    github:
+      repo: sportelo/sportelo-reservations-scraper
+      branch: main
+      deploy_on_push: true
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: ""
+      - key: APP_ENV
+        scope: RUN_TIME
+        value: "production"
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: "info"
+
 workers:
   - name: scheduler
     source_dir: /
