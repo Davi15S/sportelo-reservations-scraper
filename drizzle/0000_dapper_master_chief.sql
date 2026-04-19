@@ -1,6 +1,8 @@
-CREATE SCHEMA "benchmarks";
+CREATE SCHEMA IF NOT EXISTS "benchmarks";
 --> statement-breakpoint
-CREATE TYPE "public"."validation_status" AS ENUM('ok', 'anomaly', 'fail');--> statement-breakpoint
+DO $$ BEGIN
+  CREATE TYPE "public"."validation_status" AS ENUM('ok', 'anomaly', 'fail');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "benchmarks"."snapshots" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"facility_id" text NOT NULL,
