@@ -111,22 +111,28 @@ export function daysToSnapshots(days: ReservantoDay[]): SlotSnapshot[] {
 }
 
 /**
- * Normalizuje sport z Reservanto metadat. Vrací `null` když nelze spolehlivě
- * rozpoznat — pipeline pak sáhne po sport z Notion (facility.sport).
- * Prohledává BookingServiceName + název zdroje (kurtu).
+ * Sport per slot = slug z Reservanto `BookingServiceName`. Multi-sport
+ * sportoviště (např. Padel Neride) vracejí 3+ různé služby ("Padle tenis -
+ * hala zima", "Padel tenis - hala léto", "Tenis hala"). Každá se ukládá
+ * jako samostatný sport, takže `daily_summaries` dá per-službu rollup.
+ *
+ * Fallback: název zdroje (kurtu). Pokud ani jedno → null → pipeline použije
+ * facility.sport z Notion (monosport sportoviště).
  */
 function detectSport(av: ReservantoAvailability, src: ReservantoSource): string | null {
-  const candidates = [av.AppointmentModel?.BookingServiceName, src.name]
-    .filter((s): s is string => typeof s === 'string' && s.length > 0)
-    .map((s) => s.toLowerCase());
-  for (const c of candidates) {
-    if (/\bpadel|padle\b/.test(c)) return 'padel';
-    if (/\bsquash\b/.test(c)) return 'squash';
-    if (/\bbadminton\b/.test(c)) return 'badminton';
-    if (/\btenis|tennis\b/.test(c)) return 'tennis';
-    if (/\bstoln[ií].*tenis|ping\s?pong|table\s?tennis\b/.test(c)) return 'table_tennis';
-  }
-  return null;
+  const raw = av.AppointmentModel?.BookingServiceName ?? src.name ?? null;
+  if (!raw) return null;
+  return slugify(raw);
+}
+
+function slugify(s: string): string {
+  return s
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '') // strip diacritics (ě, á, í, …)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function isSlotAvailable(av: ReservantoAvailability): boolean {
