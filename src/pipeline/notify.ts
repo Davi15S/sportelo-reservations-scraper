@@ -55,9 +55,9 @@ export async function sendMorningReport(args: {
           .map((name) => {
             const slug = slugify(name);
             const p = f.bySport.get(slug);
-            return p
-              ? `\`${slug}\`: ${p.total} slotů (${p.available} volných)`
-              : `\`${slug}\`: mimo sezónu`;
+            if (!p) return `\`${slug}\`: mimo sezónu`;
+            const pct = p.total > 0 ? Math.round(((p.total - p.available) / p.total) * 100) : 0;
+            return `\`${slug}\`: ${p.total} slotů (${p.available} volných, ${pct}% obsazeno)`;
           })
           .join('\n'),
   }));
