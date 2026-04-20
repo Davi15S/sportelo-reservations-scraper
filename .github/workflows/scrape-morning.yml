@@ -2,10 +2,7 @@ name: Morning scrape
 
 on:
   schedule:
-    # Oba cronu běží každý den; gate job rozhodne podle Europe/Prague hodiny
-    # zda se má scrape spustit. Pokrývá DST přechod bez ruční úpravy.
-    - cron: '0 3 * * *'   # léto (CEST, UTC+2) → 05:00 Praha
-    - cron: '0 4 * * *'   # zima (CET,  UTC+1) → 05:00 Praha
+    - cron: '0 3 * * *'   # 05:00 Praha (CEST)
   workflow_dispatch:
 
 concurrency:
@@ -13,26 +10,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gate:
-    name: Check Prague hour == 05
-    runs-on: ubuntu-latest
-    outputs:
-      go: ${{ steps.check.outputs.go }}
-    steps:
-      - id: check
-        run: |
-          H=$(TZ=Europe/Prague date +%H)
-          echo "Prague hour=$H"
-          if [ "$H" = "05" ]; then
-            echo "go=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "go=false" >> "$GITHUB_OUTPUT"
-          fi
-
   scrape:
     name: Scrape reservations (today only)
-    needs: gate
-    if: needs.gate.outputs.go == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
