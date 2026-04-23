@@ -1,5 +1,5 @@
 import type { Frame, Page } from 'playwright';
-import { getBrowser, getContextOptions } from '../browser';
+import { getBrowser, openContextAndGoto } from '../browser';
 import { logger } from '../../utils/logger';
 import { nowMinutesInPrague, todayInPrague } from '../../utils/date';
 import type { Facility, FacilityScrapeResult, SlotSnapshot } from '../types';
@@ -25,12 +25,11 @@ type SportTab = { id: string; name: string; isSelected: boolean };
  */
 export async function scrapeJdemenatoFacility(facility: Facility): Promise<FacilityScrapeResult> {
   const browser = await getBrowser();
-  const context = await browser.newContext(getContextOptions());
-  const page = await context.newPage();
+  const { context, page } = await openContextAndGoto(browser, facility.reservationUrl, {
+    timeout: NAV_TIMEOUT_MS,
+  });
 
   try {
-    await page.goto(facility.reservationUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
-
     const frame = await resolveJdemenatoFrame(page);
     if (!frame) throw new Error('jdemenato iframe not found on page');
 

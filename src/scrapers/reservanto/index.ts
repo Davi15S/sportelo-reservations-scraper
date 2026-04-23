@@ -1,5 +1,5 @@
 import type { Frame } from 'playwright';
-import { getBrowser, getContextOptions } from '../browser';
+import { getBrowser, openContextAndGoto } from '../browser';
 import { logger } from '../../utils/logger';
 import { todayInPrague } from '../../utils/date';
 import type { Facility, FacilityScrapeResult, SlotSnapshot } from '../types';
@@ -22,12 +22,11 @@ type Service = { id: string; name: string };
  */
 export async function scrapeReservantoFacility(facility: Facility): Promise<FacilityScrapeResult> {
   const browser = await getBrowser();
-  const context = await browser.newContext(getContextOptions());
-  const page = await context.newPage();
+  const { context, page } = await openContextAndGoto(browser, facility.reservationUrl, {
+    timeout: NAV_TIMEOUT_MS,
+  });
 
   try {
-    await page.goto(facility.reservationUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
-
     const iframeEl = await page.waitForSelector(IFRAME_SELECTOR, { timeout: CALENDAR_WAIT_MS });
     const frame = await iframeEl.contentFrame();
     if (!frame) throw new Error('reservanto iframe has no accessible content');
